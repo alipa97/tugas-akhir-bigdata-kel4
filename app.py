@@ -115,6 +115,24 @@ def get_top_growth():
     # Ambil parameter tahun dari query string, default ke 2021 jika tidak ada
     year = int(request.args.get('year', 2021))
     
+    # Dictionary untuk mapping sektor
+    sector_mapping = {
+        '1. Agriculture': 'D. Consumer Non-Cyclicals',
+        '2. Mining': 'A. Energy',
+        '3. Basic Industry And Chemicals': 'B. Basic Materials',
+        '4. Miscellaneous Industry': 'C. Industrials',
+        '5. Consumer Goods Industry': 'D. Consumer Non-Cyclicals',
+        '6. Property, Real Estate And Building Construction': 'H. Properties & Real Estate',
+        '7. Infrastructure, Utilities And Transportation': 'J. Infrastructures',
+        '8. Finance': 'G. Financials',
+        '9. Trade, Services & Investment': 'E. Consumer Cyclicals',
+        'B. Basic Materials': 'B. Basic Materials',
+        'D. Consumer Non-Cyclicals': 'D. Consumer Non-Cyclicals',
+        'E. Consumer Cyclicals': 'E. Consumer Cyclicals',
+        'I. Technology': 'I. Technology',
+        'J. Infrastructures': 'J. Infrastructures'
+    }
+    
     # Ambil 5 emiten dengan growth rate tertinggi
     pipeline = [
         {"$match": {
@@ -146,14 +164,19 @@ def get_top_growth():
     
     top_growth = list(collection_idx.aggregate(pipeline))
     
+    # Terapkan mapping sektor untuk hasil
+    for item in top_growth:
+        if item['sector'] in sector_mapping:
+            item['original_sector'] = item['sector']
+            item['sector'] = sector_mapping[item['sector']]
+    
     # Mendapatkan daftar tahun unik untuk dropdown
     distinct_years = sorted(collection_idx.distinct("reporting_year"))
     
     return jsonify({
         "data": top_growth,
         "years": distinct_years
-})
-
+    })
 
 # API untuk mendapatkan data heatmap pertumbuhan laba bersih per sektor
 @app.route("/api/profit-growth-heatmap")

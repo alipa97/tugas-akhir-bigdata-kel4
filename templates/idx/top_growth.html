@@ -140,7 +140,7 @@
         document.getElementById('table-container').classList.add('hidden');
         document.getElementById('no-data').classList.add('hidden');
         
-        const response = await fetch(`/api/top-revenue?year=${year}`);
+        const response = await fetch(`/api/top-growth?year=${year}`);
         const result = await response.json();
         const data = result.data;
         
