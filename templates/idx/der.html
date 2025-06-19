@@ -1,0 +1,581 @@
+{% extends 'index.html' %}
+
+{% block content %}
+  <!-- Main Content -->
+  <main class="flex-1 p-8 overflow-auto">
+    <div class="mb-12">
+      <h2 class="text-2xl font-semibold text-gray-800 mb-4">Top 5 Emiten dengan DER Terendah (Terbaik) per Sektor</h2>
+
+      <!-- Filter Sektor -->
+      <div class="mb-6">
+        <label for="sectorFilter" class="block text-sm font-medium text-gray-700 mb-1">Pilih Sektor:</label>
+        <div class="flex items-center space-x-3">
+          <select id="sectorFilter" class="rounded-md border-gray-300 shadow-sm px-4 py-2 bg-white focus:border-rose-500 focus:ring focus:ring-rose-200 focus:ring-opacity-50">
+            <!-- Akan diisi oleh JavaScript -->
+          </select>
+          <button id="applyFilter" class="px-4 py-2 bg-rose-500 text-white rounded-md hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-opacity-50">
+            Terapkan
+          </button>
+        </div>
+      </div>
+
+      <!-- Loading spinner -->
+      <div id="topDERLoading" class="flex justify-center items-center h-64">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500"></div>
+      </div>
+
+      <!-- Chart Container -->
+      <div id="topDERChartContainer" class="w-full h-[400px] mb-8 hidden">
+        <canvas id="topDERChart" width="400" height="200"></canvas>
+      </div>
+
+      <!-- Table Container -->
+      <div id="topDERTableContainer" class="hidden">
+        <div class="overflow-x-auto">
+          <table class="min-w-full bg-white border border-gray-200 shadow-md rounded-lg">
+            <thead>
+              <tr class="bg-gray-100 border-b border-gray-200">
+                <th class="py-3 px-4 text-left">Peringkat</th>
+                <th class="py-3 px-4 text-left">Kode</th>
+                <th class="py-3 px-4 text-left">Nama Emiten</th>
+                <th class="py-3 px-4 text-right">DER</th>
+                <th class="py-3 px-4 text-right">Total Utang (Rp)</th>
+                <th class="py-3 px-4 text-right">Total Ekuitas (Rp)</th>
+              </tr>
+            </thead>
+            <tbody id="topDERTableBody">
+              <!-- Data akan diisi oleh JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- No Data Message -->
+      <div id="topDERNoData" class="hidden text-center py-10">
+        <p class="text-gray-500 text-lg">Tidak ada data DER tersedia untuk sektor ini</p>
+      </div>
+    </div>
+
+    <div class="mt-16">
+      <h2 class="text-2xl font-semibold text-gray-800 mb-4">DER Emiten vs. Rata-rata Sektor</h2>
+
+      <!-- Filter Emiten dan Tahun -->
+      <div class="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label for="emitenFilter" class="block text-sm font-medium text-gray-700 mb-1">Pilih Emiten:</label>
+          <select id="emitenFilter" class="w-full rounded-md border-gray-300 shadow-sm px-4 py-2 bg-white focus:border-rose-500 focus:ring focus:ring-rose-200 focus:ring-opacity-50">
+            <!-- Akan diisi oleh JavaScript -->
+          </select>
+        </div>
+        <div>
+          <label for="yearFilter" class="block text-sm font-medium text-gray-700 mb-1">Pilih Tahun:</label>
+          <div class="flex items-center space-x-3">
+            <select id="yearFilter" class="w-full rounded-md border-gray-300 shadow-sm px-4 py-2 bg-white focus:border-rose-500 focus:ring focus:ring-rose-200 focus:ring-opacity-50">
+              <!-- Akan diisi oleh JavaScript -->
+            </select>
+            <button id="compareButton" class="px-4 py-2 bg-rose-500 text-white rounded-md hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-opacity-50">
+              Bandingkan
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Loading spinner -->
+      <div id="compareLoading" class="flex justify-center items-center h-64">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500"></div>
+      </div>
+
+      <!-- Chart Container -->
+      <div id="compareChartContainer" class="w-full h-[400px] mb-8 hidden">
+        <canvas id="compareChart" width="400" height="200"></canvas>
+      </div>
+
+      <!-- Info Container -->
+      <div id="compareInfoContainer" class="hidden">
+        <div class="bg-white shadow-md rounded-lg p-6 border border-gray-200">
+          <h3 class="text-lg font-medium text-gray-900 mb-3">Analisis DER: <span id="emitenName" class="font-bold text-rose-600"></span> (<span id="sectorName"></span>)</h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-gray-50 p-4 rounded-md">
+              <p class="text-sm text-gray-600">DER Emiten:</p>
+              <p class="text-xl font-semibold" id="emitenDER">-</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-md">
+              <p class="text-sm text-gray-600">Rata-rata DER Sektor:</p>
+              <p class="text-xl font-semibold" id="sectorAvgDER">-</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-md">
+              <p class="text-sm text-gray-600">Total Emiten Sektor:</p>
+              <p class="text-xl font-semibold" id="totalEmitenSector">-</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- No Data Message -->
+      <div id="compareNoData" class="hidden text-center py-10">
+        <p class="text-gray-500 text-lg">Tidak ada data perbandingan DER tersedia</p>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Format angka menjadi format mata uang
+    function formatCurrency(number) {
+      if (number == null) return 'N/A';
+      
+      // Ubah scientific notation ke fixed
+      const numStr = number.toString();
+      if (numStr.includes('e+')) {
+        const [base, exponent] = numStr.split('e+');
+        number = parseFloat(base) * Math.pow(10, parseInt(exponent, 10));
+      }
+      
+      // Format dalam triliun
+      const trillion = 1000000000000;
+      if (Math.abs(number) >= trillion) {
+        return (number / trillion).toFixed(2) + ' T';
+      }
+      
+      // Format dalam miliar
+      const billion = 1000000000;
+      if (Math.abs(number) >= billion) {
+        return (number / billion).toFixed(2) + ' M';
+      }
+      
+      return number.toLocaleString('id-ID');
+    }
+
+    // Format DER
+    function formatDER(number) {
+      if (number == null) return 'N/A';
+      return number.toFixed(2) + 'x';
+    }
+
+    // Fungsi untuk menentukan kelas warna berdasarkan nilai DER
+    function getDERColorClass(der) {
+      if (der == null) return 'text-gray-500';
+      if (der < 0) return 'text-red-600';
+      if (der <= 0.3) return 'text-green-600';
+      if (der <= 0.7) return 'text-teal-600';
+      if (der <= 1.0) return 'text-blue-600';
+      if (der <= 2.0) return 'text-yellow-600';
+      return 'text-red-600';
+    }
+
+    // Warna untuk grafik
+    const chartColors = [
+      'rgba(52, 211, 153, 0.8)',  // Green
+      'rgba(59, 130, 246, 0.8)',  // Blue
+      'rgba(139, 92, 246, 0.8)',  // Purple
+      'rgba(249, 115, 22, 0.8)',  // Orange
+      'rgba(236, 72, 153, 0.8)'   // Pink
+    ];
+
+    // Variables untuk menyimpan instance chart
+    let topDERChart = null;
+    let compareChart = null;
+    let selectedSector = null;
+    let selectedEmiten = null;
+    let selectedYear = 2021;
+    
+    // Memuat dropdown sektor
+    async function loadSectorOptions() {
+      try {
+        const response = await fetch('/api/sectors');
+        const sectors = await response.json();
+        
+        const sectorFilter = document.getElementById('sectorFilter');
+        sectorFilter.innerHTML = '<option value="">-- Pilih Sektor --</option>';
+        
+        sectors.forEach(sector => {
+          const option = document.createElement('option');
+          option.value = sector;
+          option.textContent = sector;
+          sectorFilter.appendChild(option);
+        });
+      } catch (error) {
+        console.error('Error loading sectors:', error);
+      }
+    }
+
+    // Memuat dropdown emiten
+    async function loadEmitenOptions() {
+      try {
+        const response = await fetch('/api/emiten-list');
+        const emitens = await response.json();
+        
+        const emitenFilter = document.getElementById('emitenFilter');
+        emitenFilter.innerHTML = '<option value="">-- Pilih Emiten --</option>';
+        
+        emitens.forEach(emiten => {
+          const option = document.createElement('option');
+          option.value = emiten.company_code;
+          option.textContent = `${emiten.company_code} - ${emiten.emiten}`;
+          option.dataset.sector = emiten.sector;
+          emitenFilter.appendChild(option);
+        });
+      } catch (error) {
+        console.error('Error loading emitens:', error);
+      }
+    }
+
+    // Memuat dropdown tahun
+    async function loadYearOptions() {
+      try {
+        const response = await fetch('/api/available-years');
+        const years = await response.json();
+        
+        const yearFilter = document.getElementById('yearFilter');
+        yearFilter.innerHTML = '';
+        
+        years.forEach(year => {
+          const option = document.createElement('option');
+          option.value = year;
+          option.textContent = year;
+          if (year == selectedYear) {
+            option.selected = true;
+          }
+          yearFilter.appendChild(option);
+        });
+      } catch (error) {
+        console.error('Error loading years:', error);
+      }
+    }
+
+    // Fungsi untuk memuat data top 5 DER terendah per sektor
+    async function loadTopDER(sector) {
+      if (!sector) return;
+      
+      selectedSector = sector;
+      
+      try {
+        // Tampilkan loading spinner
+        document.getElementById('topDERLoading').classList.remove('hidden');
+        document.getElementById('topDERChartContainer').classList.add('hidden');
+        document.getElementById('topDERTableContainer').classList.add('hidden');
+        document.getElementById('topDERNoData').classList.add('hidden');
+        
+        const response = await fetch(`/api/top-der?sector=${encodeURIComponent(sector)}`);
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+          updateTopDERChart(data);
+          updateTopDERTable(data);
+          
+          document.getElementById('topDERChartContainer').classList.remove('hidden');
+          document.getElementById('topDERTableContainer').classList.remove('hidden');
+        } else {
+          document.getElementById('topDERNoData').classList.remove('hidden');
+          
+          if (topDERChart) {
+            topDERChart.destroy();
+            topDERChart = null;
+          }
+        }
+        
+        // Sembunyikan loading spinner
+        document.getElementById('topDERLoading').classList.add('hidden');
+        
+      } catch (error) {
+        console.error('Error fetching top DER data:', error);
+        document.getElementById('topDERLoading').classList.add('hidden');
+        document.getElementById('topDERNoData').classList.remove('hidden');
+        document.getElementById('topDERNoData').innerHTML = '<p class="text-center text-red-500">Gagal memuat data</p>';
+      }
+    }
+
+    // Fungsi untuk memperbarui chart top 5 DER
+    function updateTopDERChart(data) {
+      const ctx = document.getElementById('topDERChart').getContext('2d');
+      
+      // Persiapkan data
+      const labels = data.map(item => item.company_code);
+      const derValues = data.map(item => item.calculated_ratios.debt_to_equity);
+      
+      // Hapus chart lama jika sudah ada
+      if (topDERChart) {
+        topDERChart.destroy();
+      }
+      
+      // Buat grafik baru
+      topDERChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'DER',
+            data: derValues,
+            backgroundColor: chartColors,
+            borderColor: chartColors.map(color => color.replace('0.8', '1')),
+            borderWidth: 1
+          }]
+        },
+        options: {
+          indexAxis: 'y',  // Horizontal bar chart
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: {
+              display: true,
+              text: `Top 5 Emiten dengan DER Terendah - Sektor ${selectedSector}`,
+              font: {
+                size: 16,
+                weight: 'bold'
+              }
+            },
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return 'DER: ' + formatDER(context.raw);
+                },
+                afterLabel: function(context) {
+                  const index = context.dataIndex;
+                  const item = data[index];
+                  return [
+                    'Emiten: ' + item.emiten,
+                    'Total Utang: ' + formatCurrency(item.total_debt),
+                    'Total Ekuitas: ' + formatCurrency(item.equity.current_year)
+                  ];
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Debt to Equity Ratio (DER)'
+              },
+              ticks: {
+                callback: function(value) {
+                  return value.toFixed(2) + 'x';
+                }
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Kode Emiten'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Fungsi untuk memperbarui tabel top 5 DER
+    function updateTopDERTable(data) {
+      const tableBody = document.getElementById('topDERTableBody');
+      tableBody.innerHTML = '';
+      
+      data.forEach((item, index) => {
+        const row = document.createElement('tr');
+        row.className = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+        
+        // Tambahkan kelas warna untuk DER
+        const derClass = getDERColorClass(item.calculated_ratios.debt_to_equity);
+        
+        row.innerHTML = `
+          <td class="py-3 px-4 border-b border-gray-200">${index + 1}</td>
+          <td class="py-3 px-4 border-b border-gray-200 font-medium">${item.company_code}</td>
+          <td class="py-3 px-4 border-b border-gray-200">${item.emiten}</td>
+          <td class="py-3 px-4 border-b border-gray-200 text-right font-bold ${derClass}">${formatDER(item.calculated_ratios.debt_to_equity)}</td>
+          <td class="py-3 px-4 border-b border-gray-200 text-right">${formatCurrency(item.total_debt)}</td>
+          <td class="py-3 px-4 border-b border-gray-200 text-right">${formatCurrency(item.equity.current_year)}</td>
+        `;
+        tableBody.appendChild(row);
+      });
+    }
+
+    // Fungsi untuk memuat data perbandingan DER
+    async function loadCompareDER(emitenCode, year) {
+      if (!emitenCode || !year) return;
+      
+      selectedEmiten = emitenCode;
+      selectedYear = year;
+      
+      try {
+        // Tampilkan loading spinner
+        document.getElementById('compareLoading').classList.remove('hidden');
+        document.getElementById('compareChartContainer').classList.add('hidden');
+        document.getElementById('compareInfoContainer').classList.add('hidden');
+        document.getElementById('compareNoData').classList.add('hidden');
+        
+        const response = await fetch(`/api/compare-der?emiten=${encodeURIComponent(emitenCode)}&year=${year}`);
+        const data = await response.json();
+        
+        if (data && data.emiten_der !== undefined) {
+          updateCompareChart(data);
+          updateCompareInfo(data);
+          
+          document.getElementById('compareChartContainer').classList.remove('hidden');
+          document.getElementById('compareInfoContainer').classList.remove('hidden');
+        } else {
+          document.getElementById('compareNoData').classList.remove('hidden');
+          
+          if (compareChart) {
+            compareChart.destroy();
+            compareChart = null;
+          }
+        }
+        
+        // Sembunyikan loading spinner
+        document.getElementById('compareLoading').classList.add('hidden');
+        
+      } catch (error) {
+        console.error('Error fetching compare DER data:', error);
+        document.getElementById('compareLoading').classList.add('hidden');
+        document.getElementById('compareNoData').classList.remove('hidden');
+        document.getElementById('compareNoData').innerHTML = '<p class="text-center text-red-500">Gagal memuat data perbandingan</p>';
+      }
+    }
+
+    // Fungsi untuk memperbarui chart perbandingan DER
+    function updateCompareChart(data) {
+      const ctx = document.getElementById('compareChart').getContext('2d');
+      
+      // Persiapkan data
+      const labels = ['DER Emiten', 'Rata-rata DER Sektor'];
+      const derValues = [data.emiten_der, data.sector_avg_der];
+      
+      // Hapus chart lama jika sudah ada
+      if (compareChart) {
+        compareChart.destroy();
+      }
+      
+      // Tentukan warna berdasarkan perbandingan
+      const colors = [
+        data.emiten_der <= data.sector_avg_der ? 'rgba(52, 211, 153, 0.8)' : 'rgba(239, 68, 68, 0.8)',
+        'rgba(107, 114, 128, 0.8)'
+      ];
+
+      // Tentukan border colors
+      const borderColors = colors.map(color => color.replace('0.8', '1'));
+      
+      // Buat grafik baru
+      compareChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'DER',
+            data: derValues,
+            backgroundColor: colors,
+            borderColor: borderColors,
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: {
+              display: true,
+              text: `DER ${data.emiten_name} (${data.company_code}) vs. Rata-rata Sektor ${data.sector} (${selectedYear})`,
+              font: {
+                size: 16,
+                weight: 'bold'
+              }
+            },
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return 'DER: ' + formatDER(context.raw);
+                },
+                afterLabel: function(context) {
+                  if (context.dataIndex === 0) {
+                    return `${data.emiten_name} (${data.company_code})`;
+                  } else {
+                    return `Berdasarkan ${data.total_emiten} emiten di sektor ${data.sector}`;
+                  }
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Debt to Equity Ratio (DER)'
+              },
+              ticks: {
+                callback: function(value) {
+                  return value.toFixed(2) + 'x';
+                }
+              }
+            }
+          }
+        }
+      });
+
+      // Tambahkan line untuk rata-rata sektor
+      compareChart.options.plugins.annotation = {
+        annotations: {
+          line1: {
+            type: 'line',
+            yMin: data.sector_avg_der,
+            yMax: data.sector_avg_der,
+            borderColor: 'rgba(107, 114, 128, 0.8)',
+            borderWidth: 2,
+            borderDash: [5, 5],
+            label: {
+              content: `Rata-rata Sektor: ${formatDER(data.sector_avg_der)}`,
+              enabled: true,
+              position: 'end'
+            }
+          }
+        }
+      };
+    }
+
+    // Fungsi untuk memperbarui info perbandingan
+    function updateCompareInfo(data) {
+      document.getElementById('emitenName').textContent = `${data.emiten_name} (${data.company_code})`;
+      document.getElementById('sectorName').textContent = data.sector;
+      
+      const emitenDERElement = document.getElementById('emitenDER');
+      emitenDERElement.textContent = formatDER(data.emiten_der);
+      emitenDERElement.className = `text-xl font-semibold ${getDERColorClass(data.emiten_der)}`;
+      
+      const sectorAvgDERElement = document.getElementById('sectorAvgDER');
+      sectorAvgDERElement.textContent = formatDER(data.sector_avg_der);
+      
+      document.getElementById('totalEmitenSector').textContent = data.total_emiten;
+    }
+
+    // Event listeners
+    document.getElementById('applyFilter').addEventListener('click', function() {
+      const sector = document.getElementById('sectorFilter').value;
+      if (sector) {
+        loadTopDER(sector);
+      } else {
+        alert('Harap pilih sektor terlebih dahulu');
+      }
+    });
+
+    document.getElementById('compareButton').addEventListener('click', function() {
+      const emiten = document.getElementById('emitenFilter').value;
+      const year = parseInt(document.getElementById('yearFilter').value);
+      if (emiten && year) {
+        loadCompareDER(emiten, year);
+      } else {
+        alert('Harap pilih emiten dan tahun terlebih dahulu');
+      }
+    });
+
+    // Panggil fungsi saat halaman dimuat
+    window.onload = function() {
+      loadSectorOptions();
+      loadEmitenOptions();
+      loadYearOptions();
+    };
+  </script>
+{% endblock %}

@@ -1,0 +1,589 @@
+{% extends 'index.html' %} {% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  .ratio-excellent {
+    color: #10b981;
+    font-weight: bold;
+  }
+  .ratio-good {
+    color: #3b82f6;
+    font-weight: bold;
+  }
+  .ratio-fair {
+    color: #f59e0b;
+    font-weight: bold;
+  }
+  .ratio-poor {
+    color: #ef4444;
+    font-weight: bold;
+  }
+  .loading-spinner {
+    display: none;
+  }</style
+><!-- Main Content -->
+<main class="flex-1 p-8 overflow-auto">
+  <div class="max-w-7xl mx-auto">
+    <h2 class="text-3xl font-bold text-gray-800 mb-2">
+      📈 Financial Ratios Analysis
+    </h2>
+    <p class="text-gray-600 mb-6">
+      Analyze ROE, ROA, and Net Profit Margin of Indonesian companies
+    </p>
+
+    <!-- Filters -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div class="bg-white p-6 rounded-lg shadow-md">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">Filter Options</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="sectorSelect" class="block text-gray-700 mb-2"
+              >Select Sector:</label
+            >
+            <select
+              id="sectorSelect"
+              class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Loading sectors...</option>
+            </select>
+          </div>
+          <div>
+            <label for="yearSelect" class="block text-gray-700 mb-2"
+              >Select Year:</label
+            >
+            <select
+              id="yearSelect"
+              class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Loading years...</option>
+            </select>
+          </div>
+        </div>
+        <div class="mt-4">
+          <button
+            id="loadDataBtn"
+            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            Load Data
+          </button>
+        </div>
+      </div>
+      <div class="bg-white p-6 rounded-lg shadow-md">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">
+          Ratio Definitions
+        </h3>
+        <ul class="text-sm text-gray-600 space-y-1">
+          <li><strong>ROE:</strong> Return on Equity = Net Profit / Equity</li>
+          <li>
+            <strong>ROA:</strong> Return on Assets = Net Profit / Total Assets
+          </li>
+          <li>
+            <strong>NPM:</strong> Net Profit Margin = Net Profit / Revenue
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loadingSpinner" class="loading-spinner text-center py-8">
+      <div
+        class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"
+      ></div>
+      <p class="mt-2 text-gray-600">Loading financial data...</p>
+    </div>
+
+    <!-- Main Content -->
+    <div id="mainContent" style="display: none">
+      <!-- Summary Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div
+          class="bg-white p-6 rounded-lg shadow-md text-center hover:shadow-lg transition-shadow"
+        >
+          <h3 class="text-lg font-semibold text-green-600 mb-2">Average ROE</h3>
+          <div id="avgROE" class="text-3xl font-bold text-green-600">-</div>
+          <p class="text-sm text-gray-500 mt-1">Return on Equity</p>
+        </div>
+        <div
+          class="bg-white p-6 rounded-lg shadow-md text-center hover:shadow-lg transition-shadow"
+        >
+          <h3 class="text-lg font-semibold text-blue-600 mb-2">Average ROA</h3>
+          <div id="avgROA" class="text-3xl font-bold text-blue-600">-</div>
+          <p class="text-sm text-gray-500 mt-1">Return on Assets</p>
+        </div>
+        <div
+          class="bg-white p-6 rounded-lg shadow-md text-center hover:shadow-lg transition-shadow"
+        >
+          <h3 class="text-lg font-semibold text-yellow-600 mb-2">
+            Average NPM
+          </h3>
+          <div id="avgNPM" class="text-3xl font-bold text-yellow-600">-</div>
+          <p class="text-sm text-gray-500 mt-1">Net Profit Margin</p>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div class="bg-white p-6 rounded-lg shadow-md">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">
+            📊 Financial Ratios Distribution
+          </h3>
+          <div class="h-64">
+            <canvas id="ratiosChart"></canvas>
+          </div>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">
+            📈 Top 10 Companies by ROE
+          </h3>
+          <div class="h-64">
+            <canvas id="topROEChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Table -->
+      <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <div
+          class="px-6 py-4 border-b border-gray-200 flex justify-between items-center"
+        >
+          <h3 class="text-lg font-semibold text-gray-800">
+            📋 Financial Ratios Data
+          </h3>
+          <span id="dataCount" class="text-sm text-gray-500">0 companies</span>
+        </div>
+        <div class="overflow-x-auto max-h-96">
+          <table class="min-w-full">
+            <thead class="bg-gray-50">
+              <tr>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Company
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Code
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Sector
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  ROE (%)
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  ROA (%)
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  NPM (%)
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Net Profit
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Equity
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Assets
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Revenue
+                </th>
+              </tr>
+            </thead>
+            <tbody
+              id="ratiosTableBody"
+              class="bg-white divide-y divide-gray-200"
+            >
+              <!-- Data will be populated here -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+  let currentData = [];
+  let ratiosChart = null;
+  let topROEChart = null;
+
+  // Utility functions
+  function formatNumber(num) {
+    if (num === null || num === undefined) return "-";
+    if (typeof num === "string") return num;
+
+    if (Math.abs(num) >= 1e12) {
+      return (num / 1e12).toFixed(2) + "T";
+    } else if (Math.abs(num) >= 1e9) {
+      return (num / 1e9).toFixed(2) + "B";
+    } else if (Math.abs(num) >= 1e6) {
+      return (num / 1e6).toFixed(2) + "M";
+    } else if (Math.abs(num) >= 1e3) {
+      return (num / 1e3).toFixed(2) + "K";
+    } else {
+      return num.toFixed(2);
+    }
+  }
+
+  function formatPercentage(num) {
+    if (num === null || num === undefined) return "-";
+    return num.toFixed(2) + "%";
+  }
+
+  function getRatioClass(ratio, type) {
+    if (ratio === null || ratio === undefined) return "";
+
+    switch (type) {
+      case "roe":
+        if (ratio > 20) return "ratio-excellent";
+        if (ratio > 15) return "ratio-good";
+        if (ratio > 10) return "ratio-fair";
+        return "ratio-poor";
+      case "roa":
+        if (ratio > 10) return "ratio-excellent";
+        if (ratio > 5) return "ratio-good";
+        if (ratio > 2) return "ratio-fair";
+        return "ratio-poor";
+      case "npm":
+        if (ratio > 15) return "ratio-excellent";
+        if (ratio > 10) return "ratio-good";
+        if (ratio > 5) return "ratio-fair";
+        return "ratio-poor";
+      default:
+        return "";
+    }
+  } // Load sectors and years
+  async function loadFilters() {
+    try {
+      console.log("Loading filters...");
+      const [sectorsResponse, yearsResponse] = await Promise.all([
+        fetch("/api/sectors"),
+        fetch("/api/years"),
+      ]);
+
+      console.log("Sectors response status:", sectorsResponse.status);
+      console.log("Years response status:", yearsResponse.status);
+
+      const sectors = await sectorsResponse.json();
+      const years = await yearsResponse.json();
+
+      console.log("Sectors data:", sectors);
+      console.log("Years data:", years);
+
+      const sectorSelect = document.getElementById("sectorSelect");
+      sectorSelect.innerHTML = '<option value="">All Sectors</option>';
+      sectors.forEach((sector) => {
+        sectorSelect.innerHTML += `<option value="${sector}">${sector}</option>`;
+      });
+
+      const yearSelect = document.getElementById("yearSelect");
+      yearSelect.innerHTML = "";
+
+      // Add fallback years if API doesn't return data
+      if (!years || years.length === 0) {
+        console.warn("No years returned from API, using fallback years");
+        const fallbackYears = [2021, 2022, 2023];
+        fallbackYears.forEach((year) => {
+          yearSelect.innerHTML += `<option value="${year}" ${
+            year === 2022 ? "selected" : ""
+          }>${year}</option>`;
+        });
+      } else {
+        years.forEach((year) => {
+          yearSelect.innerHTML += `<option value="${year}" ${
+            year === 2022 ? "selected" : ""
+          }>${year}</option>`;
+        });
+      }
+    } catch (error) {
+      console.error("Error loading filters:", error);
+
+      // Add fallback years in case of error
+      const yearSelect = document.getElementById("yearSelect");
+      yearSelect.innerHTML = "";
+      const fallbackYears = [2021, 2022, 2023];
+      fallbackYears.forEach((year) => {
+        yearSelect.innerHTML += `<option value="${year}" ${
+          year === 2022 ? "selected" : ""
+        }>${year}</option>`;
+      });
+
+      // Add fallback sectors
+      const sectorSelect = document.getElementById("sectorSelect");
+      sectorSelect.innerHTML = '<option value="">All Sectors</option>';
+      const fallbackSectors = [
+        "Agriculture",
+        "Energy",
+        "Finance",
+        "Manufacturing",
+        "Technology",
+      ];
+      fallbackSectors.forEach((sector) => {
+        sectorSelect.innerHTML += `<option value="${sector}">${sector}</option>`;
+      });
+    }
+  }
+
+  // Load financial ratios data
+  async function loadFinancialRatios() {
+    const sector = document.getElementById("sectorSelect").value;
+    const year = document.getElementById("yearSelect").value;
+
+    if (!year) {
+      alert("Please select a year");
+      return;
+    }
+
+    showLoading(true);
+
+    try {
+      const params = new URLSearchParams({ year });
+      if (sector) params.append("sector", sector);
+
+      const response = await fetch(`/api/financial-ratios-data?${params}`);
+      const data = await response.json();
+
+      if (response.ok) {
+        currentData = data;
+        displayData(data);
+        updateCharts(data);
+        showLoading(false);
+      } else {
+        throw new Error(data.error || "Failed to load data");
+      }
+    } catch (error) {
+      console.error("Error loading financial ratios:", error);
+      alert("Error loading data: " + error.message);
+      showLoading(false);
+    }
+  }
+
+  // Display data in table and summary cards
+  function displayData(data) {
+    document.getElementById("mainContent").style.display = "block";
+
+    // Update summary cards
+    const roeValues = data
+      .filter((d) => d.roe !== null && !isNaN(d.roe))
+      .map((d) => d.roe);
+    const roaValues = data
+      .filter((d) => d.roa !== null && !isNaN(d.roa))
+      .map((d) => d.roa);
+    const npmValues = data
+      .filter((d) => d.npm !== null && !isNaN(d.npm))
+      .map((d) => d.npm);
+
+    const avgROE =
+      roeValues.length > 0
+        ? roeValues.reduce((a, b) => a + b, 0) / roeValues.length
+        : 0;
+    const avgROA =
+      roaValues.length > 0
+        ? roaValues.reduce((a, b) => a + b, 0) / roaValues.length
+        : 0;
+    const avgNPM =
+      npmValues.length > 0
+        ? npmValues.reduce((a, b) => a + b, 0) / npmValues.length
+        : 0;
+
+    document.getElementById("avgROE").textContent = formatPercentage(avgROE);
+    document.getElementById("avgROA").textContent = formatPercentage(avgROA);
+    document.getElementById("avgNPM").textContent = formatPercentage(avgNPM);
+
+    // Update data count
+    document.getElementById(
+      "dataCount"
+    ).textContent = `${data.length} companies`;
+
+    // Populate table
+    const tbody = document.getElementById("ratiosTableBody");
+    tbody.innerHTML = "";
+
+    data.forEach((item) => {
+      const row = document.createElement("tr");
+      row.className = "hover:bg-gray-50";
+      row.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${
+                  item.emiten
+                }</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">${
+                      item.company_code
+                    }</span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${
+                  item.sector
+                }</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${getRatioClass(
+                  item.roe,
+                  "roe"
+                )}">${formatPercentage(item.roe)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${getRatioClass(
+                  item.roa,
+                  "roa"
+                )}">${formatPercentage(item.roa)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${getRatioClass(
+                  item.npm,
+                  "npm"
+                )}">${formatPercentage(item.npm)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatNumber(
+                  item.net_profit
+                )}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatNumber(
+                  item.equity
+                )}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatNumber(
+                  item.assets
+                )}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatNumber(
+                  item.revenue
+                )}</td>
+            `;
+      tbody.appendChild(row);
+    });
+  }
+
+  // Update charts
+  function updateCharts(data) {
+    updateRatiosChart(data);
+    updateTopROEChart(data);
+  }
+
+  // Update ratios distribution chart
+  function updateRatiosChart(data) {
+    const ctx = document.getElementById("ratiosChart").getContext("2d");
+
+    if (ratiosChart) {
+      ratiosChart.destroy();
+    }
+
+    const validData = data.filter(
+      (d) => d.roe !== null && d.roa !== null && d.npm !== null
+    );
+
+    ratiosChart = new Chart(ctx, {
+      type: "scatter",
+      data: {
+        datasets: [
+          {
+            label: "ROE vs ROA",
+            data: validData.map((d) => ({ x: d.roa, y: d.roe })),
+            backgroundColor: "rgba(59, 130, 246, 0.6)",
+            borderColor: "rgba(59, 130, 246, 1)",
+            borderWidth: 1,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: "ROA (%)",
+            },
+          },
+          y: {
+            title: {
+              display: true,
+              text: "ROE (%)",
+            },
+          },
+        },
+        plugins: {
+          title: {
+            display: true,
+            text: "ROE vs ROA Distribution",
+          },
+        },
+      },
+    });
+  }
+
+  // Update top ROE chart
+  function updateTopROEChart(data) {
+    const ctx = document.getElementById("topROEChart").getContext("2d");
+
+    if (topROEChart) {
+      topROEChart.destroy();
+    }
+
+    const sortedData = data
+      .filter((d) => d.roe !== null && !isNaN(d.roe))
+      .sort((a, b) => b.roe - a.roe)
+      .slice(0, 10);
+
+    topROEChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: sortedData.map((d) => d.company_code),
+        datasets: [
+          {
+            label: "ROE (%)",
+            data: sortedData.map((d) => d.roe),
+            backgroundColor: "rgba(16, 185, 129, 0.6)",
+            borderColor: "rgba(16, 185, 129, 1)",
+            borderWidth: 1,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: "ROE (%)",
+            },
+          },
+        },
+        plugins: {
+          title: {
+            display: true,
+            text: "Top 10 Companies by ROE",
+          },
+        },
+      },
+    });
+  }
+
+  // Show/hide loading
+  function showLoading(show) {
+    document.getElementById("loadingSpinner").style.display = show
+      ? "block"
+      : "none";
+    document.getElementById("mainContent").style.display = show
+      ? "none"
+      : "block";
+  }
+
+  // Event listeners
+  document
+    .getElementById("loadDataBtn")
+    .addEventListener("click", loadFinancialRatios);
+
+  // Initialize
+  window.addEventListener("load", function () {
+    loadFilters();
+  });
+</script>
+{% endblock %}

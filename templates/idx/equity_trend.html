@@ -1,0 +1,780 @@
+{% extends 'index.html' %} {% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  .trend-positive {
+    color: #10b981;
+    font-weight: bold;
+  }
+  .trend-negative {
+    color: #ef4444;
+    font-weight: bold;
+  }
+  .trend-stable {
+    color: #6b7280;
+    font-weight: bold;
+  }
+  .loading-spinner {
+    display: none;
+  }
+  .growth-high {
+    color: #10b981;
+    font-weight: bold;
+  }
+  .growth-medium {
+    color: #f59e0b;
+    font-weight: bold;
+  }
+  .growth-low {
+    color: #ef4444;
+    font-weight: bold;
+  }
+</style>
+
+<!-- Main Content -->
+<main class="flex-1 p-8 overflow-auto">
+  <div class="max-w-7xl mx-auto">
+    <h2 class="text-3xl font-bold text-gray-800 mb-2">
+      📈 Equity Trend Analysis
+    </h2>
+    <p class="text-gray-600 mb-6">
+      Analyze shareholder equity trends and growth patterns of Indonesian
+      companies
+    </p>
+
+    <!-- Filters -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div class="bg-white p-6 rounded-lg shadow-md">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">Filter Options</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="sectorSelect" class="block text-gray-700 mb-2"
+              >Select Sector:</label
+            >
+            <select
+              id="sectorSelect"
+              class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Loading sectors...</option>
+            </select>
+          </div>
+          <div>
+            <label for="yearSelect" class="block text-gray-700 mb-2"
+              >Select Year:</label
+            >
+            <select
+              id="yearSelect"
+              class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Loading years...</option>
+            </select>
+          </div>
+        </div>
+        <div class="mt-4 flex gap-2">
+          <button
+            id="loadDataBtn"
+            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            Load Data
+          </button>
+          <button
+            id="compareBtn"
+            class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors"
+          >
+            Compare Sectors
+          </button>
+        </div>
+      </div>
+      <div class="bg-white p-6 rounded-lg shadow-md">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">
+          Analysis Information
+        </h3>
+        <ul class="text-sm text-gray-600 space-y-1">
+          <li>
+            <strong>Equity:</strong> Total shareholder equity (book value)
+          </li>
+          <li>
+            <strong>Growth Rate:</strong> (Current Year - Prior Year) / Prior
+            Year × 100
+          </li>
+          <li>
+            <strong>Equity Growth:</strong> Indicates company's value creation
+          </li>
+          <li>
+            <strong>Trend Analysis:</strong> Year-over-year equity evolution
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loadingSpinner" class="loading-spinner text-center py-8">
+      <div
+        class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"
+      ></div>
+      <p class="mt-2 text-gray-600">Loading equity trend data...</p>
+    </div>
+
+    <!-- Main Content -->
+    <div id="mainContent" style="display: none">
+      <!-- Summary Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+        <div
+          class="bg-white p-6 rounded-lg shadow-md text-center hover:shadow-lg transition-shadow"
+        >
+          <h3 class="text-lg font-semibold text-blue-600 mb-2">
+            Total Companies
+          </h3>
+          <div id="totalCompanies" class="text-3xl font-bold text-blue-600">
+            -
+          </div>
+          <p class="text-sm text-gray-500 mt-1">With Equity Data</p>
+        </div>
+        <div
+          class="bg-white p-6 rounded-lg shadow-md text-center hover:shadow-lg transition-shadow"
+        >
+          <h3 class="text-lg font-semibold text-green-600 mb-2">
+            Avg Growth Rate
+          </h3>
+          <div id="avgGrowthRate" class="text-3xl font-bold text-green-600">
+            -
+          </div>
+          <p class="text-sm text-gray-500 mt-1">Year-over-Year</p>
+        </div>
+        <div
+          class="bg-white p-6 rounded-lg shadow-md text-center hover:shadow-lg transition-shadow"
+        >
+          <h3 class="text-lg font-semibold text-blue-600 mb-2">
+            High Growth Companies
+          </h3>
+          <div id="highGrowthCount" class="text-3xl font-bold text-blue-600">
+            -
+          </div>
+          <p class="text-sm text-gray-500 mt-1">Equity Growth > 20%</p>
+        </div>
+        <div
+          class="bg-white p-6 rounded-lg shadow-md text-center hover:shadow-lg transition-shadow"
+        >
+          <h3 class="text-lg font-semibold text-purple-600 mb-2">
+            Total Equity
+          </h3>
+          <div id="totalEquity" class="text-3xl font-bold text-purple-600">
+            -
+          </div>
+          <p class="text-sm text-gray-500 mt-1">Aggregate Amount</p>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div class="bg-white p-6 rounded-lg shadow-md">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">
+            📊 Equity Growth Distribution
+          </h3>
+          <div class="h-64">
+            <canvas id="growthDistributionChart"></canvas>
+          </div>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">
+            🏢 Top 10 Companies by Equity
+          </h3>
+          <div class="h-64">
+            <canvas id="topEquityChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Table -->
+      <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <div
+          class="px-6 py-4 border-b border-gray-200 flex justify-between items-center"
+        >
+          <h3 class="text-lg font-semibold text-gray-800">
+            📋 Equity Trend Data
+          </h3>
+          <span id="dataCount" class="text-sm text-gray-500">0 companies</span>
+        </div>
+        <div class="overflow-x-auto max-h-96">
+          <table class="min-w-full">
+            <thead class="bg-gray-50">
+              <tr>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Company
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Code
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Sector
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Current Year
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Prior Year
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Growth Rate
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Growth Level
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Year
+                </th>
+              </tr>
+            </thead>
+            <tbody id="dataTableBody" class="bg-white divide-y divide-gray-200">
+              <!-- Data will be populated here -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Comparison Modal -->
+    <div
+      id="comparisonModal"
+      class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50"
+    >
+      <div class="bg-white rounded-lg p-6 max-w-4xl w-full m-4">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold text-gray-800">
+            Sector Equity Comparison
+          </h3>
+          <button id="closeModal" class="text-gray-500 hover:text-gray-700">
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+              <path
+                fill-rule="evenodd"
+                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                clip-rule="evenodd"
+              ></path>
+            </svg>
+          </button>
+        </div>
+        <div class="h-96">
+          <canvas id="comparisonChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  let currentData = [];
+  let growthDistributionChart = null;
+  let topEquityChart = null;
+  let comparisonChart = null;
+
+  // Utility functions
+  function formatNumber(num) {
+    if (num === null || num === undefined) return "-";
+    if (typeof num === "string") return num;
+
+    if (num >= 1e12) {
+      return (num / 1e12).toFixed(2) + "T";
+    } else if (num >= 1e9) {
+      return (num / 1e9).toFixed(2) + "B";
+    } else if (num >= 1e6) {
+      return (num / 1e6).toFixed(2) + "M";
+    } else if (num >= 1e3) {
+      return (num / 1e3).toFixed(2) + "K";
+    }
+    return num.toLocaleString("id-ID");
+  }
+
+  function formatPercentage(num) {
+    if (num === null || num === undefined || isNaN(num)) return "-";
+    return num.toFixed(2) + "%";
+  }
+
+  function getTrendClass(growthRate) {
+    if (growthRate === null || growthRate === undefined || isNaN(growthRate))
+      return "trend-stable";
+    if (growthRate > 0) return "trend-positive";
+    if (growthRate < 0) return "trend-negative";
+    return "trend-stable";
+  }
+
+  function getGrowthClass(growthRate) {
+    if (growthRate === null || growthRate === undefined || isNaN(growthRate))
+      return "growth-medium";
+    if (growthRate > 20) return "growth-high";
+    if (growthRate < -10) return "growth-low";
+    return "growth-medium";
+  }
+
+  function getGrowthLevel(growthRate) {
+    if (growthRate === null || growthRate === undefined || isNaN(growthRate))
+      return "Stable";
+    if (growthRate > 20) return "High Growth";
+    if (growthRate > 5) return "Medium Growth";
+    if (growthRate > -5) return "Stable";
+    if (growthRate > -20) return "Declining";
+    return "Significant Decline";
+  }
+
+  // Load dropdown options
+  async function loadDropdownOptions() {
+    try {
+      const sectorsResponse = await fetch("/api/sectors");
+      const yearsResponse = await fetch("/api/years");
+
+      const sectors = await sectorsResponse.json();
+      const years = await yearsResponse.json();
+
+      const sectorSelect = document.getElementById("sectorSelect");
+      sectorSelect.innerHTML = '<option value="">All Sectors</option>';
+      sectors.forEach((sector) => {
+        sectorSelect.innerHTML += `<option value="${sector}">${sector}</option>`;
+      });
+
+      const yearSelect = document.getElementById("yearSelect");
+      yearSelect.innerHTML = "";
+
+      if (!years || years.length === 0) {
+        const fallbackYears = [2021, 2022, 2023];
+        fallbackYears.forEach((year) => {
+          yearSelect.innerHTML += `<option value="${year}" ${
+            year === 2022 ? "selected" : ""
+          }>${year}</option>`;
+        });
+      } else {
+        years.forEach((year) => {
+          yearSelect.innerHTML += `<option value="${year}" ${
+            year === 2022 ? "selected" : ""
+          }>${year}</option>`;
+        });
+      }
+    } catch (error) {
+      console.error("Error loading dropdown options:", error);
+    }
+  }
+
+  // Load data
+  async function loadData() {
+    const sector = document.getElementById("sectorSelect").value;
+    const year = document.getElementById("yearSelect").value;
+
+    if (!year) {
+      alert("Please select a year");
+      return;
+    }
+
+    showLoading(true);
+
+    try {
+      const params = new URLSearchParams({ year });
+      if (sector) params.append("sector", sector);
+
+      const response = await fetch(`/api/equity-trend-data?${params}`);
+      const data = await response.json();
+
+      if (response.ok) {
+        currentData = data;
+        updateSummaryCards(data);
+        updateCharts(data);
+        updateDataTable(data);
+        showLoading(false);
+      } else {
+        console.error("Error loading data:", data);
+        alert("Error loading data. Please try again.");
+        showLoading(false);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Error loading data. Please check your network connection.");
+      showLoading(false);
+    }
+  }
+
+  // Update summary cards
+  function updateSummaryCards(data) {
+    const totalCompanies = data.length;
+    const validGrowthData = data.filter(
+      (d) => d.growth_rate !== null && !isNaN(d.growth_rate)
+    );
+    const avgGrowthRate =
+      validGrowthData.length > 0
+        ? validGrowthData.reduce((sum, d) => sum + d.growth_rate, 0) /
+          validGrowthData.length
+        : 0;
+    const highGrowthCount = data.filter((d) => d.growth_rate > 20).length;
+    const totalEquity = data.reduce(
+      (sum, d) => sum + (d.equity_current || 0),
+      0
+    );
+
+    document.getElementById("totalCompanies").textContent = totalCompanies;
+    document.getElementById("avgGrowthRate").textContent =
+      formatPercentage(avgGrowthRate);
+    document.getElementById("highGrowthCount").textContent = highGrowthCount;
+    document.getElementById("totalEquity").textContent =
+      formatNumber(totalEquity);
+  }
+
+  // Update data table
+  function updateDataTable(data) {
+    const tbody = document.getElementById("dataTableBody");
+    tbody.innerHTML = "";
+
+    document.getElementById(
+      "dataCount"
+    ).textContent = `${data.length} companies`;
+
+    data.forEach((item) => {
+      const growthLevel = getGrowthLevel(item.growth_rate);
+      const row = document.createElement("tr");
+      row.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${
+                  item.emiten
+                }</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">${
+                      item.company_code
+                    }</span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${
+                  item.sector
+                }</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatNumber(
+                  item.equity_current
+                )}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatNumber(
+                  item.equity_prior
+                )}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${getTrendClass(
+                  item.growth_rate
+                )}">${formatPercentage(item.growth_rate)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${getGrowthClass(
+                  item.growth_rate
+                )}">${growthLevel}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${
+                  item.reporting_year
+                }</td>
+            `;
+      tbody.appendChild(row);
+    });
+  }
+
+  // Update charts
+  function updateCharts(data) {
+    updateGrowthDistributionChart(data);
+    updateTopEquityChart(data);
+  }
+
+  // Update growth distribution chart
+  function updateGrowthDistributionChart(data) {
+    const ctx = document
+      .getElementById("growthDistributionChart")
+      .getContext("2d");
+
+    if (growthDistributionChart) {
+      growthDistributionChart.destroy();
+    }
+
+    const validData = data.filter(
+      (d) => d.growth_rate !== null && !isNaN(d.growth_rate)
+    );
+
+    // Create growth rate bins
+    const bins = {
+      "Significant Decline (<-20%)": 0,
+      "Decline (-20% to -5%)": 0,
+      "Stable (-5% to 5%)": 0,
+      "Low Growth (5% to 20%)": 0,
+      "High Growth (>20%)": 0,
+    };
+
+    validData.forEach((d) => {
+      const rate = d.growth_rate;
+      if (rate < -20) bins["Significant Decline (<-20%)"]++;
+      else if (rate < -5) bins["Decline (-20% to -5%)"]++;
+      else if (rate < 5) bins["Stable (-5% to 5%)"]++;
+      else if (rate < 20) bins["Low Growth (5% to 20%)"]++;
+      else bins["High Growth (>20%)"]++;
+    });
+
+    growthDistributionChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: Object.keys(bins),
+        datasets: [
+          {
+            label: "Number of Companies",
+            data: Object.values(bins),
+            backgroundColor: [
+              "rgba(239, 68, 68, 0.8)", // Red - Significant decline
+              "rgba(245, 158, 11, 0.8)", // Orange - Decline
+              "rgba(107, 114, 128, 0.8)", // Gray - Stable
+              "rgba(59, 130, 246, 0.8)", // Blue - Low growth
+              "rgba(16, 185, 129, 0.8)", // Green - High growth
+            ],
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          title: {
+            display: true,
+            text: "Distribution of Equity Growth Rates",
+          },
+          legend: {
+            display: false,
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: "Number of Companies",
+            },
+          },
+        },
+      },
+    });
+  }
+
+  // Update top equity chart
+  function updateTopEquityChart(data) {
+    const ctx = document.getElementById("topEquityChart").getContext("2d");
+
+    if (topEquityChart) {
+      topEquityChart.destroy();
+    }
+
+    // Get top 10 companies by equity
+    const top10 = data
+      .filter((d) => d.equity_current > 0)
+      .sort((a, b) => b.equity_current - a.equity_current)
+      .slice(0, 10);
+
+    topEquityChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: top10.map((d) => d.company_code),
+        datasets: [
+          {
+            label: "Equity (IDR)",
+            data: top10.map((d) => d.equity_current / 1e12), // Convert to trillions
+            backgroundColor: "rgba(147, 51, 234, 0.8)", // Purple
+            borderColor: "rgba(147, 51, 234, 1)",
+            borderWidth: 1,
+          },
+        ],
+      },
+      options: {
+        indexAxis: "y",
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: "Equity (Trillions IDR)",
+            },
+          },
+        },
+        plugins: {
+          title: {
+            display: true,
+            text: "Top 10 Companies by Equity",
+          },
+          tooltip: {
+            callbacks: {
+              label: function (context) {
+                const company = top10[context.dataIndex];
+                return [
+                  `${company.emiten}`,
+                  `Equity: ${formatNumber(company.equity_current)}`,
+                  `Growth: ${formatPercentage(company.growth_rate)}`,
+                ];
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  // Show/hide loading
+  function showLoading(show) {
+    document.getElementById("loadingSpinner").style.display = show
+      ? "block"
+      : "none";
+    document.getElementById("mainContent").style.display = show
+      ? "none"
+      : "block";
+  }
+
+  // Compare sectors
+  async function compareSectors() {
+    const year = document.getElementById("yearSelect").value;
+    if (!year) {
+      alert("Please select a year first");
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/compare-equity-trend?year=${year}`);
+      const data = await response.json();
+
+      if (response.ok) {
+        showComparisonChart(data);
+      } else {
+        console.error("Error loading comparison data:", data);
+        alert("Error loading comparison data");
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Error loading comparison data");
+    }
+  }
+
+  // Show comparison chart
+  function showComparisonChart(data) {
+    const modal = document.getElementById("comparisonModal");
+    modal.classList.remove("hidden");
+    modal.style.display = "flex";
+
+    const ctx = document.getElementById("comparisonChart").getContext("2d");
+
+    if (comparisonChart) {
+      comparisonChart.destroy();
+    }
+
+    // Limit to top 10 sectors by total equity
+    const top10Sectors = data.slice(0, 10);
+
+    comparisonChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: top10Sectors.map((d) => d.sector),
+        datasets: [
+          {
+            label: "Total Equity (Trillions IDR)",
+            data: top10Sectors.map((d) => d.total_equity / 1e12),
+            backgroundColor: "rgba(147, 51, 234, 0.8)",
+            borderColor: "rgba(147, 51, 234, 1)",
+            borderWidth: 1,
+          },
+          {
+            label: "Average Growth Rate (%)",
+            data: top10Sectors.map((d) => d.avg_growth || 0),
+            type: "line",
+            borderColor: "rgba(16, 185, 129, 1)",
+            backgroundColor: "rgba(16, 185, 129, 0.2)",
+            yAxisID: "y1",
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            type: "linear",
+            display: true,
+            position: "left",
+            title: {
+              display: true,
+              text: "Total Equity (Trillions IDR)",
+            },
+          },
+          y1: {
+            type: "linear",
+            display: true,
+            position: "right",
+            title: {
+              display: true,
+              text: "Average Growth Rate (%)",
+            },
+            grid: {
+              drawOnChartArea: false,
+            },
+          },
+        },
+        plugins: {
+          title: {
+            display: true,
+            text: "Sector Equity Comparison",
+          },
+          tooltip: {
+            callbacks: {
+              label: function (context) {
+                const sector = top10Sectors[context.dataIndex];
+                if (context.dataset.label.includes("Total")) {
+                  return [
+                    `Total Equity: ${formatNumber(sector.total_equity)}`,
+                    `Companies: ${sector.total_companies}`,
+                    `Avg Equity: ${formatNumber(sector.avg_equity)}`,
+                  ];
+                } else {
+                  return `Avg Growth: ${formatPercentage(sector.avg_growth)}`;
+                }
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  // Event listeners
+  document.addEventListener("DOMContentLoaded", function () {
+    loadDropdownOptions();
+
+    document.getElementById("loadDataBtn").addEventListener("click", loadData);
+    document
+      .getElementById("compareBtn")
+      .addEventListener("click", compareSectors);
+
+    // Modal close functionality
+    document
+      .getElementById("closeModal")
+      .addEventListener("click", function () {
+        const modal = document.getElementById("comparisonModal");
+        modal.classList.add("hidden");
+        modal.style.display = "none";
+      });
+
+    // Close modal when clicking outside
+    document
+      .getElementById("comparisonModal")
+      .addEventListener("click", function (e) {
+        if (e.target === this) {
+          this.classList.add("hidden");
+          this.style.display = "none";
+        }
+      });
+
+    // Auto-load data on page load with default settings
+    setTimeout(() => {
+      const yearSelect = document.getElementById("yearSelect");
+      if (yearSelect.value) {
+        loadData();
+      }
+    }, 1000);
+  });
+</script>
+{% endblock %}

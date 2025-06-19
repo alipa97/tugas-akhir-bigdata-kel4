@@ -1,0 +1,163 @@
+{% extends 'index.html' %}
+
+{% block content %}
+  <!-- Main Content -->
+  <main class="flex-1 p-8 overflow-auto">
+    <div class="">
+      <h2 class="text-2xl font-semibold text-gray-800 mb-4">Dashboard Saham Yfinance</h2>
+
+      <!-- Ticker Selection -->
+      <div class="mb-6">
+        <label for="ticker-select" class="block text-gray-700 mb-2">Pilih Ticker:</label>
+        <select id="ticker-select" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">-- Pilih Ticker --</option>
+        </select>
+      </div>
+
+      <div id="price-buttons" class="flex gap-2 mt-2">
+        <div class="price-btn cursor-pointer px-4 py-2 rounded border border-blue-500 text-blue-500 font-medium bg-blue-100" data-type="close">Close</div>
+        <div class="price-btn cursor-pointer px-4 py-2 rounded border border-gray-300 text-gray-700 font-medium bg-white" data-type="open">Open</div>
+        <div class="price-btn cursor-pointer px-4 py-2 rounded border border-gray-300 text-gray-700 font-medium bg-white" data-type="high">High</div>
+        <div class="price-btn cursor-pointer px-4 py-2 rounded border border-gray-300 text-gray-700 font-medium bg-white" data-type="low">Low</div>
+      </div>
+
+      <div id="range-buttons" class="flex gap-2 mt-2">
+        <div class="range-btn cursor-pointer px-4 py-2 rounded border border-blue-500 text-blue-500 font-medium bg-blue-100" data-range="3">3 Tahun</div>
+        <div class="range-btn cursor-pointer px-4 py-2 rounded border border-gray-300 text-gray-700 font-medium bg-white" data-range="5">5 Tahun</div>
+      </div>
+
+      <!-- Chart -->
+      <div id="chart-container" class="w-full h-[500px]">
+        <canvas id="lineChart" class="w-full h-full"></canvas>
+      </div>
+    </div>
+  </main>
+
+  <script>
+  window.onload = function () {
+    const selectTicker = document.getElementById("ticker-select");
+    const priceButtons = document.querySelectorAll(".price-btn");
+    const ctx = document.getElementById("lineChart").getContext("2d");
+
+    let chart;
+    let rawData = [];
+    let selectedType = "close"; // default harga awal
+
+    // Fetch ticker list
+    fetch("/api/tickers")
+      .then(res => res.json())
+      .then(data => {
+        data.forEach(ticker => {
+          const option = document.createElement("option");
+          option.value = ticker;
+          option.textContent = ticker;
+          selectTicker.appendChild(option);
+        });
+      });
+
+    // Fungsi update grafik
+    function updateChart(type) {
+      if (!rawData.length) return;
+
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+      const labels = rawData.map(d => {
+        const date = new Date(d.date);
+        return `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+      });
+
+      const priceData = rawData.map(d => d[type]);
+      const volumeData = rawData.map(d => d.volume);
+
+      if (chart) chart.destroy();
+
+      chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              type: 'line',
+              label: `Harga ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+              data: priceData,
+              borderColor: "blue",
+              backgroundColor: "rgba(0, 0, 255, 0.1)",
+              yAxisID: 'y',
+              borderWidth: 2,
+              pointRadius: 0
+            },
+            {
+              type: 'bar',
+              label: 'Volume',
+              data: volumeData,
+              backgroundColor: "rgba(128, 128, 128, 0.3)",
+              yAxisID: 'y1'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              ticks: { maxTicksLimit: 10 },
+              title: { display: true, text: "Bulan" }
+            },
+            y: {
+              beginAtZero: false,
+              position: 'left',
+              title: { display: true, text: `Harga (${type})` }
+            },
+            y1: {
+              beginAtZero: true,
+              position: 'right',
+              grid: { drawOnChartArea: false },
+              title: { display: true, text: "Volume" }
+            }
+          },
+          plugins: {
+            legend: { display: true },
+            tooltip: {
+              mode: 'index',
+              intersect: false
+            }
+          }
+        }
+      });
+    }
+
+    // Saat ticker berubah
+    selectTicker.addEventListener("change", function () {
+      const ticker = this.value;
+      if (!ticker) return;
+
+      fetch(`/api/stock/${ticker}`)
+        .then(res => res.json())
+        .then(data => {
+          rawData = data;
+          updateChart(selectedType); // pakai yang dipilih terakhir
+        });
+    });
+
+    // Saat tombol harga diklik
+    priceButtons.forEach(btn => {
+      btn.addEventListener("click", () => {
+        selectedType = btn.dataset.type;
+
+        // Reset semua tombol
+        priceButtons.forEach(b => {
+          b.classList.remove("bg-blue-100", "border-blue-500", "text-blue-500");
+          b.classList.add("bg-white", "border-gray-300", "text-gray-700");
+        });
+
+        // Aktifkan tombol yang dipilih
+        btn.classList.remove("bg-white", "border-gray-300", "text-gray-700");
+        btn.classList.add("bg-blue-100", "border-blue-500", "text-blue-500");
+
+        updateChart(selectedType);
+      });
+    });
+  };
+</script>
+{% endblock %}

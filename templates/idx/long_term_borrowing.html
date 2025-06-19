@@ -1,0 +1,612 @@
+{% extends 'index.html' %} {% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  .trend-positive {
+    color: #ef4444;
+    font-weight: bold;
+  }
+  .trend-negative {
+    color: #10b981;
+    font-weight: bold;
+  }
+  .trend-stable {
+    color: #6b7280;
+    font-weight: bold;
+  }
+  .loading-spinner {
+    display: none;
+  }
+  .risk-high {
+    color: #ef4444;
+    font-weight: bold;
+  }
+  .risk-medium {
+    color: #f59e0b;
+    font-weight: bold;
+  }
+  .risk-low {
+    color: #10b981;
+    font-weight: bold;
+  }
+</style>
+
+<!-- Main Content -->
+<main class="flex-1 p-8 overflow-auto">
+  <div class="max-w-7xl mx-auto">
+    <h2 class="text-3xl font-bold text-gray-800 mb-2">
+      📊 Long-Term Borrowing Trend Analysis
+    </h2>
+    <p class="text-gray-600 mb-6">
+      Analyze long-term debt trends and leverage risk of Indonesian companies
+    </p>
+
+    <!-- Filters -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div class="bg-white p-6 rounded-lg shadow-md">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">Filter Options</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="sectorSelect" class="block text-gray-700 mb-2"
+              >Select Sector:</label
+            >
+            <select
+              id="sectorSelect"
+              class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Loading sectors...</option>
+            </select>
+          </div>
+          <div>
+            <label for="yearSelect" class="block text-gray-700 mb-2"
+              >Select Year:</label
+            >
+            <select
+              id="yearSelect"
+              class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Loading years...</option>
+            </select>
+          </div>
+        </div>
+        <div class="mt-4 flex gap-2">
+          <button
+            id="loadDataBtn"
+            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            Load Data
+          </button>
+        </div>
+      </div>
+      <div class="bg-white p-6 rounded-lg shadow-md">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">
+          Analysis Information
+        </h3>
+        <ul class="text-sm text-gray-600 space-y-1">
+          <li><strong>Long-Term Debt:</strong> Debt with maturity > 1 year</li>
+          <li>
+            <strong>Growth Rate:</strong> (Current Year - Prior Year) / Prior
+            Year × 100
+          </li>
+          <li>
+            <strong>Leverage Risk:</strong> Based on debt growth and absolute
+            amount
+          </li>
+          <li>
+            <strong>Trend Analysis:</strong> Year-over-year debt evolution
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loadingSpinner" class="loading-spinner text-center py-8">
+      <div
+        class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"
+      ></div>
+      <p class="mt-2 text-gray-600">Loading long-term borrowing data...</p>
+    </div>
+
+    <!-- Main Content -->
+    <div id="mainContent" style="display: none">
+      <!-- Summary Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+        <div
+          class="bg-white p-6 rounded-lg shadow-md text-center hover:shadow-lg transition-shadow"
+        >
+          <h3 class="text-lg font-semibold text-blue-600 mb-2">
+            Total Companies
+          </h3>
+          <div id="totalCompanies" class="text-3xl font-bold text-blue-600">
+            -
+          </div>
+          <p class="text-sm text-gray-500 mt-1">With LT Debt Data</p>
+        </div>
+        <div
+          class="bg-white p-6 rounded-lg shadow-md text-center hover:shadow-lg transition-shadow"
+        >
+          <h3 class="text-lg font-semibold text-green-600 mb-2">
+            Avg Growth Rate
+          </h3>
+          <div id="avgGrowthRate" class="text-3xl font-bold text-green-600">
+            -
+          </div>
+          <p class="text-sm text-gray-500 mt-1">Year-over-Year</p>
+        </div>
+        <div
+          class="bg-white p-6 rounded-lg shadow-md text-center hover:shadow-lg transition-shadow"
+        >
+          <h3 class="text-lg font-semibold text-red-600 mb-2">
+            High Risk Companies
+          </h3>
+          <div id="highRiskCount" class="text-3xl font-bold text-red-600">
+            -
+          </div>
+          <p class="text-sm text-gray-500 mt-1">Debt Growth > 50%</p>
+        </div>
+        <div
+          class="bg-white p-6 rounded-lg shadow-md text-center hover:shadow-lg transition-shadow"
+        >
+          <h3 class="text-lg font-semibold text-yellow-600 mb-2">
+            Total LT Debt
+          </h3>
+          <div id="totalDebt" class="text-3xl font-bold text-yellow-600">-</div>
+          <p class="text-sm text-gray-500 mt-1">Aggregate Amount</p>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div class="bg-white p-6 rounded-lg shadow-md">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">
+            📈 Debt Growth Distribution
+          </h3>
+          <div class="h-64">
+            <canvas id="growthDistributionChart"></canvas>
+          </div>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">
+            🏢 Top 10 Companies by LT Debt
+          </h3>
+          <div class="h-64">
+            <canvas id="topDebtChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Table -->
+      <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <div
+          class="px-6 py-4 border-b border-gray-200 flex justify-between items-center"
+        >
+          <h3 class="text-lg font-semibold text-gray-800">
+            📋 Long-Term Borrowing Data
+          </h3>
+          <span id="dataCount" class="text-sm text-gray-500">0 companies</span>
+        </div>
+        <div class="overflow-x-auto max-h-96">
+          <table class="min-w-full">
+            <thead class="bg-gray-50">
+              <tr>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Company
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Code
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Sector
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Current Year
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Prior Year
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Growth Rate
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Risk Level
+                </th>
+                <th
+                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
+                  Year
+                </th>
+              </tr>
+            </thead>
+            <tbody
+              id="borrowingTableBody"
+              class="bg-white divide-y divide-gray-200"
+            >
+              <!-- Data will be populated here -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  let currentData = [];
+  let growthDistributionChart = null;
+  let topDebtChart = null;
+
+  // Utility functions
+  function formatNumber(num) {
+    if (num === null || num === undefined) return "-";
+    if (typeof num === "string") return num;
+
+    if (Math.abs(num) >= 1e15) {
+      return (num / 1e15).toFixed(2) + "P";
+    } else if (Math.abs(num) >= 1e12) {
+      return (num / 1e12).toFixed(2) + "T";
+    } else if (Math.abs(num) >= 1e9) {
+      return (num / 1e9).toFixed(2) + "B";
+    } else if (Math.abs(num) >= 1e6) {
+      return (num / 1e6).toFixed(2) + "M";
+    } else if (Math.abs(num) >= 1e3) {
+      return (num / 1e3).toFixed(2) + "K";
+    } else {
+      return num.toFixed(2);
+    }
+  }
+
+  function formatPercentage(num) {
+    if (num === null || num === undefined) return "-";
+    return num.toFixed(2) + "%";
+  }
+
+  function getTrendClass(growthRate) {
+    if (growthRate === null || growthRate === undefined) return "";
+
+    if (growthRate > 20) return "trend-positive";
+    if (growthRate < -10) return "trend-negative";
+    return "trend-stable";
+  }
+
+  function getRiskLevel(growthRate, currentDebt) {
+    if (growthRate === null || growthRate === undefined) return "Unknown";
+
+    if (growthRate > 50 || currentDebt > 1e16) return "High";
+    if (growthRate > 20 || currentDebt > 1e15) return "Medium";
+    return "Low";
+  }
+
+  function getRiskClass(riskLevel) {
+    switch (riskLevel) {
+      case "High":
+        return "risk-high";
+      case "Medium":
+        return "risk-medium";
+      case "Low":
+        return "risk-low";
+      default:
+        return "";
+    }
+  }
+
+  // Load sectors and years
+  async function loadFilters() {
+    try {
+      console.log("Loading filters...");
+      const [sectorsResponse, yearsResponse] = await Promise.all([
+        fetch("/api/sectors"),
+        fetch("/api/years"),
+      ]);
+
+      const sectors = await sectorsResponse.json();
+      const years = await yearsResponse.json();
+
+      const sectorSelect = document.getElementById("sectorSelect");
+      sectorSelect.innerHTML = '<option value="">All Sectors</option>';
+      sectors.forEach((sector) => {
+        sectorSelect.innerHTML += `<option value="${sector}">${sector}</option>`;
+      });
+
+      const yearSelect = document.getElementById("yearSelect");
+      yearSelect.innerHTML = "";
+
+      if (!years || years.length === 0) {
+        const fallbackYears = [2021, 2022, 2023];
+        fallbackYears.forEach((year) => {
+          yearSelect.innerHTML += `<option value="${year}" ${
+            year === 2022 ? "selected" : ""
+          }>${year}</option>`;
+        });
+      } else {
+        years.forEach((year) => {
+          yearSelect.innerHTML += `<option value="${year}" ${
+            year === 2022 ? "selected" : ""
+          }>${year}</option>`;
+        });
+      }
+    } catch (error) {
+      console.error("Error loading filters:", error);
+    }
+  }
+
+  // Load long-term borrowing data
+  async function loadBorrowingData() {
+    const sector = document.getElementById("sectorSelect").value;
+    const year = document.getElementById("yearSelect").value;
+
+    if (!year) {
+      alert("Please select a year");
+      return;
+    }
+
+    showLoading(true);
+
+    try {
+      const params = new URLSearchParams({ year });
+      if (sector) params.append("sector", sector);
+
+      const response = await fetch(`/api/long-term-borrowing-data?${params}`);
+      const data = await response.json();
+
+      if (response.ok) {
+        currentData = data;
+        displayData(data);
+        updateCharts(data);
+        showLoading(false);
+      } else {
+        throw new Error(data.error || "Failed to load data");
+      }
+    } catch (error) {
+      console.error("Error loading borrowing data:", error);
+      alert("Error loading data: " + error.message);
+      showLoading(false);
+    }
+  }
+
+  // Display data in table and summary cards
+  function displayData(data) {
+    document.getElementById("mainContent").style.display = "block";
+
+    // Calculate summary statistics
+    const validData = data.filter(
+      (d) => d.long_term_borrowing_current !== null
+    );
+    const growthRates = validData
+      .filter((d) => d.growth_rate !== null)
+      .map((d) => d.growth_rate);
+    const highRiskCompanies = validData.filter(
+      (d) =>
+        getRiskLevel(d.growth_rate, d.long_term_borrowing_current) === "High"
+    );
+    const totalDebt = validData.reduce(
+      (sum, d) => sum + (d.long_term_borrowing_current || 0),
+      0
+    );
+
+    const avgGrowthRate =
+      growthRates.length > 0
+        ? growthRates.reduce((a, b) => a + b, 0) / growthRates.length
+        : 0;
+
+    // Update summary cards
+    document.getElementById("totalCompanies").textContent = validData.length;
+    document.getElementById("avgGrowthRate").textContent =
+      formatPercentage(avgGrowthRate);
+    document.getElementById("highRiskCount").textContent =
+      highRiskCompanies.length;
+    document.getElementById("totalDebt").textContent = formatNumber(totalDebt);
+
+    // Update data count
+    document.getElementById(
+      "dataCount"
+    ).textContent = `${data.length} companies`;
+
+    // Populate table
+    const tbody = document.getElementById("borrowingTableBody");
+    tbody.innerHTML = "";
+
+    data.forEach((item) => {
+      const riskLevel = getRiskLevel(
+        item.growth_rate,
+        item.long_term_borrowing_current
+      );
+      const row = document.createElement("tr");
+      row.className = "hover:bg-gray-50";
+      row.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${
+                  item.emiten
+                }</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">${
+                      item.company_code
+                    }</span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${
+                  item.sector
+                }</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatNumber(
+                  item.long_term_borrowing_current
+                )}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatNumber(
+                  item.long_term_borrowing_prior
+                )}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${getTrendClass(
+                  item.growth_rate
+                )}">${formatPercentage(item.growth_rate)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${getRiskClass(
+                  riskLevel
+                )}">${riskLevel}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${
+                  item.reporting_year
+                }</td>
+            `;
+      tbody.appendChild(row);
+    });
+  }
+  // Update charts
+  function updateCharts(data) {
+    updateGrowthDistributionChart(data);
+    updateTopDebtChart(data);
+  }
+
+  // Update growth distribution chart
+  function updateGrowthDistributionChart(data) {
+    const ctx = document
+      .getElementById("growthDistributionChart")
+      .getContext("2d");
+
+    if (growthDistributionChart) {
+      growthDistributionChart.destroy();
+    }
+
+    const validData = data.filter(
+      (d) => d.growth_rate !== null && !isNaN(d.growth_rate)
+    );
+
+    // Create growth rate bins
+    const bins = {
+      "Decrease > 50%": 0,
+      "Decrease 10-50%": 0,
+      "Stable (-10% to 10%)": 0,
+      "Increase 10-50%": 0,
+      "Increase > 50%": 0,
+    };
+
+    validData.forEach((d) => {
+      if (d.growth_rate < -50) bins["Decrease > 50%"]++;
+      else if (d.growth_rate < -10) bins["Decrease 10-50%"]++;
+      else if (d.growth_rate <= 10) bins["Stable (-10% to 10%)"]++;
+      else if (d.growth_rate <= 50) bins["Increase 10-50%"]++;
+      else bins["Increase > 50%"]++;
+    });
+
+    growthDistributionChart = new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels: Object.keys(bins),
+        datasets: [
+          {
+            data: Object.values(bins),
+            backgroundColor: [
+              "rgba(239, 68, 68, 0.8)",
+              "rgba(245, 158, 11, 0.8)",
+              "rgba(107, 114, 128, 0.8)",
+              "rgba(59, 130, 246, 0.8)",
+              "rgba(16, 185, 129, 0.8)",
+            ],
+            borderColor: [
+              "rgba(239, 68, 68, 1)",
+              "rgba(245, 158, 11, 1)",
+              "rgba(107, 114, 128, 1)",
+              "rgba(59, 130, 246, 1)",
+              "rgba(16, 185, 129, 1)",
+            ],
+            borderWidth: 1,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          title: {
+            display: true,
+            text: "Debt Growth Rate Distribution",
+          },
+          legend: {
+            position: "bottom",
+          },
+        },
+      },
+    });
+  }
+
+  // Update top debt chart
+  function updateTopDebtChart(data) {
+    const ctx = document.getElementById("topDebtChart").getContext("2d");
+
+    if (topDebtChart) {
+      topDebtChart.destroy();
+    }
+
+    const sortedData = data
+      .filter(
+        (d) =>
+          d.long_term_borrowing_current !== null &&
+          d.long_term_borrowing_current > 0
+      )
+      .sort(
+        (a, b) => b.long_term_borrowing_current - a.long_term_borrowing_current
+      )
+      .slice(0, 10);
+
+    topDebtChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: sortedData.map((d) => d.company_code),
+        datasets: [
+          {
+            label: "Long-Term Debt",
+            data: sortedData.map((d) => d.long_term_borrowing_current / 1e12), // Convert to trillions
+            backgroundColor: "rgba(239, 68, 68, 0.6)",
+            borderColor: "rgba(239, 68, 68, 1)",
+            borderWidth: 1,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: "Debt Amount (Trillions)",
+            },
+          },
+        },
+        plugins: {
+          title: {
+            display: true,
+            text: "Top 10 Companies by Long-Term Debt",
+          },
+        },
+      },
+    });
+  }
+
+  // Show/hide loading
+  function showLoading(show) {
+    document.getElementById("loadingSpinner").style.display = show
+      ? "block"
+      : "none";
+    document.getElementById("mainContent").style.display = show
+      ? "none"
+      : "block";
+  }
+
+  // Event listeners
+  document
+    .getElementById("loadDataBtn")
+    .addEventListener("click", loadBorrowingData);
+
+  // Initialize
+  window.addEventListener("load", function () {
+    loadFilters();
+  });
+</script>
+{% endblock %}

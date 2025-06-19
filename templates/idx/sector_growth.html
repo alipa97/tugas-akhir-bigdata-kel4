@@ -1,0 +1,261 @@
+{% extends 'index.html' %}
+
+{% block content %}
+  <!-- Main Content -->
+  <main class="flex-1 p-8 overflow-auto">
+    <div class="">
+      <h2 class="text-2xl font-semibold text-gray-800 mb-4">Line Chart Tren Pertumbuhan Sektor</h2>
+
+      <!-- Filter Sektor -->
+      <div class="mb-6">
+        <label for="sectorFilter" class="block text-sm font-medium text-gray-700 mb-1">Pilih Sektor:</label>
+        <div class="flex items-center space-x-3">
+          <select id="sectorFilter" class="rounded-md border-gray-300 shadow-sm px-4 py-2 bg-white focus:border-rose-500 focus:ring focus:ring-rose-200 focus:ring-opacity-50">
+            <!-- Akan diisi oleh JavaScript -->
+          </select>
+          <button id="applyFilter" class="px-4 py-2 bg-rose-500 text-white rounded-md hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-opacity-50">
+            Tampilkan
+          </button>
+        </div>
+      </div>
+
+      <!-- Loading spinner -->
+      <div id="loading" class="flex justify-center items-center h-64">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500"></div>
+      </div>
+
+      <!-- Chart Container -->
+      <div id="chart-container" class="w-full h-[500px] mb-8 hidden">
+        <canvas id="growthChart" width="400" height="200"></canvas>
+      </div>
+
+      <!-- Info Container -->
+      <div id="info-container" class="hidden">
+        <div class="bg-white shadow-md rounded-lg p-6 border border-gray-200">
+          <h3 class="text-lg font-medium text-gray-900 mb-3">Informasi Sektor: <span id="sectorName" class="font-bold text-rose-600"></span></h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-gray-50 p-4 rounded-md">
+              <p class="text-sm text-gray-600">Total Perusahaan Dianalisis:</p>
+              <p class="text-xl font-semibold text-gray-900" id="companyCount">-</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-md">
+              <p class="text-sm text-gray-600">Rata-rata Pertumbuhan:</p>
+              <p class="text-xl font-semibold" id="avgGrowth">-</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- No Data Message -->
+      <div id="no-data" class="hidden text-center py-10">
+        <p class="text-gray-500 text-lg">Tidak ada data pertumbuhan untuk sektor ini</p>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Format persentase
+    function formatPercentage(number) {
+      if (number == null) return 'N/A';
+      
+      const sign = number >= 0 ? '+' : '';
+      const color = number >= 0 ? 'text-green-600' : 'text-red-600';
+      const formattedValue = number.toFixed(2) + '%';
+      
+      return `<span class="${color}">${sign}${formattedValue}</span>`;
+    }
+
+    // Variable untuk menyimpan instance chart
+    let growthChart = null;
+    let currentSector = null;
+    const defaultSector = "Energy";
+    
+    // Memuat dropdown sektor
+    async function loadSectorOptions() {
+      try {
+        const response = await fetch('/api/sectors');
+        const sectors = await response.json();
+        
+        const sectorFilter = document.getElementById('sectorFilter');
+        sectorFilter.innerHTML = '';
+        
+        sectors.forEach(sector => {
+          const option = document.createElement('option');
+          option.value = sector;
+          option.textContent = sector;
+          if (sector === defaultSector) {
+            option.selected = true;
+          }
+          sectorFilter.appendChild(option);
+        });
+        
+        // Langsung muat data untuk sektor default
+        loadData(defaultSector);
+      } catch (error) {
+        console.error('Error loading sectors:', error);
+      }
+    }
+
+    // Fungsi untuk memperbarui grafik
+    function updateChart(labels, data, counts) {
+      const ctx = document.getElementById('growthChart').getContext('2d');
+      
+      // Hapus chart lama jika sudah ada
+      if (growthChart) {
+        growthChart.destroy();
+      }
+      
+      // Tentukan warna berdasarkan nilai pertumbuhan
+      const pointColors = data.map(value => value >= 0 ? 'rgba(52, 211, 153, 1)' : 'rgba(239, 68, 68, 1)');
+      const lineColor = 'rgba(79, 70, 229, 1)';
+      
+      // Buat grafik baru
+      growthChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: `Rata-rata Pertumbuhan Revenue (%)`,
+            data: data,
+            fill: false,
+            borderColor: lineColor,
+            borderWidth: 3,
+            tension: 0.4,
+            pointBackgroundColor: pointColors,
+            pointBorderColor: pointColors,
+            pointRadius: 6,
+            pointHoverRadius: 8
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: {
+              display: true,
+              text: `Tren Pertumbuhan Revenue Sektor ${currentSector}`,
+              font: {
+                size: 16,
+                weight: 'bold'
+              }
+            },
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const value = context.parsed.y;
+                  const sign = value >= 0 ? '+' : '';
+                  return `Pertumbuhan: ${sign}${value.toFixed(2)}%`;
+                },
+                afterLabel: function(context) {
+                  const dataIndex = context.dataIndex;
+                  const count = growthChart.data.counts[dataIndex];
+                  return `Berdasarkan ${count} perusahaan`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Tahun'
+              },
+              grid: {
+                display: false
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Pertumbuhan (%)'
+              },
+              beginAtZero: false,
+              ticks: {
+                callback: function(value) {
+                  return value.toFixed(2) + '%';
+                }
+              }
+            }
+          }
+        }
+      });
+      
+      // Simpan counts untuk digunakan di tooltip
+      growthChart.data.counts = counts;
+    }
+
+    // Fungsi untuk memperbarui informasi sektor
+    function updateInfo(result) {
+      // Hitung rata-rata pertumbuhan dari semua tahun
+      const totalGrowth = result.data.reduce((sum, value) => sum + value, 0);
+      const avgGrowth = totalGrowth / result.data.length;
+      
+      // Hitung total perusahaan yang dianalisis (ambil dari tahun terakhir)
+      const companyCount = result.counts[result.counts.length - 1];
+      
+      document.getElementById('companyCount').textContent = companyCount;
+      document.getElementById('avgGrowth').innerHTML = formatPercentage(avgGrowth);
+    }
+
+    // Fungsi untuk memuat data dan memperbarui UI
+    async function loadData(sector) {
+      if (!sector) return;
+      
+      currentSector = sector;
+      document.getElementById('sectorName').textContent = sector;
+      
+      try {
+        // Tampilkan loading spinner
+        document.getElementById('loading').classList.remove('hidden');
+        document.getElementById('chart-container').classList.add('hidden');
+        document.getElementById('info-container').classList.add('hidden');
+        document.getElementById('no-data').classList.add('hidden');
+        
+        const response = await fetch(`/api/sector-growth?sector=${encodeURIComponent(sector)}`);
+        const result = await response.json();
+        
+        if (result && result.labels && result.labels.length > 0) {
+          updateChart(result.labels, result.data, result.counts);
+          updateInfo(result);
+          
+          document.getElementById('chart-container').classList.remove('hidden');
+          document.getElementById('info-container').classList.remove('hidden');
+        } else {
+          document.getElementById('no-data').classList.remove('hidden');
+          
+          if (growthChart) {
+            growthChart.destroy();
+            growthChart = null;
+          }
+        }
+        
+        // Sembunyikan loading spinner
+        document.getElementById('loading').classList.add('hidden');
+        
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('no-data').classList.remove('hidden');
+        document.getElementById('no-data').innerHTML = '<p class="text-center text-red-500">Gagal memuat data</p>';
+      }
+    }
+
+    // Event listener untuk tombol filter
+    document.getElementById('applyFilter').addEventListener('click', function() {
+      const sector = document.getElementById('sectorFilter').value;
+      if (sector) {
+        loadData(sector);
+      } else {
+        alert('Harap pilih sektor terlebih dahulu');
+      }
+    });
+
+    // Panggil fungsi saat halaman dimuat
+    window.onload = function() {
+      loadSectorOptions();
+    };
+  </script>
+{% endblock %}

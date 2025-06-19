@@ -1,0 +1,401 @@
+{% extends 'index.html' %} {% block content %}
+<!-- Main Content -->
+<main class="flex-1 p-8 overflow-auto">
+  <div class="">
+    <h2 class="text-2xl font-semibold text-gray-800 mb-4">
+      Komposisi Aset dan Ekuitas per Sektor
+    </h2>
+
+    <!-- Filter Tahun -->
+    <div class="mb-6">
+      <label
+        for="yearFilter"
+        class="block text-sm font-medium text-gray-700 mb-1"
+        >Filter berdasarkan Tahun:</label
+      >
+      <div class="flex items-center space-x-3">
+        <select
+          id="yearFilter"
+          class="rounded-md border-gray-300 shadow-sm px-4 py-2 bg-white focus:border-rose-500 focus:ring focus:ring-rose-200 focus:ring-opacity-50"
+        >
+          <!-- Akan diisi oleh JavaScript -->
+        </select>
+        <button
+          id="applyFilter"
+          class="px-4 py-2 bg-rose-500 text-white rounded-md hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-opacity-50"
+        >
+          Terapkan
+        </button>
+      </div>
+    </div>
+
+    <!-- Loading spinner -->
+    <div id="loading" class="flex justify-center items-center h-64">
+      <div
+        class="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500"
+      ></div>
+    </div>
+
+    <!-- Chart Container -->
+    <div id="chart-container" class="w-full h-[500px] mb-8 hidden">
+      <canvas id="compositionChart" width="400" height="200"></canvas>
+    </div>
+
+    <!-- Table Container -->
+    <div id="table-container" class="hidden">
+      <div class="overflow-x-auto">
+        <table
+          class="min-w-full bg-white border border-gray-200 shadow-md rounded-lg"
+        >
+          <thead>
+            <tr class="bg-gray-100 border-b border-gray-200">
+              <th class="py-3 px-4 text-left">Sektor</th>
+              <th class="py-3 px-4 text-right">Total Aset (Rp)</th>
+              <th class="py-3 px-4 text-right">Total Ekuitas (Rp)</th>
+              <th class="py-3 px-4 text-right">Equity to Assets (%)</th>
+              <th class="py-3 px-4 text-right">Debt to Assets (%)</th>
+              <th class="py-3 px-4 text-center">Jumlah Emiten</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <!-- Data akan diisi oleh JavaScript -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- No Data Message -->
+    <div id="no-data" class="hidden text-center py-10">
+      <p class="text-gray-500 text-lg">
+        Tidak ada data tersedia untuk tahun yang dipilih
+      </p>
+    </div>
+
+    <!-- Insight Container -->
+    <div
+      id="insight-container"
+      class="mt-8 bg-white p-6 rounded-lg shadow-md border border-gray-200 hidden"
+    >
+      <h3 class="text-lg font-semibold text-gray-800 mb-2">
+        Insight Analisis Komposisi Aset dan Ekuitas
+      </h3>
+      <div class="prose text-gray-600">
+        <p>
+          Grafik ini menampilkan perbandingan aset dan ekuitas per sektor untuk
+          mengukur struktur permodalan dan sumber pendanaan aset. Perbandingan
+          antar sektor menunjukkan variasi struktur neraca keuangan di berbagai
+          industri.
+        </p>
+        <ul class="mt-3">
+          <li>
+            <strong>Equity to Assets Ratio</strong>: Menunjukkan proporsi aset
+            yang didanai dari ekuitas pemegang saham. Rasio lebih tinggi
+            mengindikasikan ketahanan finansial yang lebih baik.
+          </li>
+          <li>
+            <strong>Debt to Assets Ratio</strong>: Menunjukkan proporsi aset
+            yang didanai dari utang. Rasio tinggi mengindikasikan leverage
+            tinggi dan potensi risiko finansial.
+          </li>
+        </ul>
+        <p class="mt-3">
+          <strong>Interpretasi</strong>: Sektor dengan rasio ekuitas terhadap
+          aset tinggi cenderung memiliki risiko keuangan lebih rendah dan
+          ketahanan yang lebih baik terhadap fluktuasi ekonomi. Namun, sektor
+          dengan leverage lebih tinggi (debt to assets tinggi) berpotensi
+          memberikan pengembalian lebih tinggi pada kondisi ekonomi yang
+          menguntungkan.
+        </p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  // Format angka menjadi format mata uang
+  function formatCurrency(number) {
+    if (number == null) return "N/A";
+
+    // Ubah scientific notation ke fixed
+    const numStr = number.toString();
+    if (numStr.includes("e+")) {
+      const [base, exponent] = numStr.split("e+");
+      number = parseFloat(base) * Math.pow(10, parseInt(exponent, 10));
+    }
+
+    // Format dalam triliun
+    const trillion = 1000000000000;
+    if (Math.abs(number) >= trillion) {
+      return (number / trillion).toFixed(2) + " T";
+    }
+
+    // Format dalam miliar
+    const billion = 1000000000;
+    if (Math.abs(number) >= billion) {
+      return (number / billion).toFixed(2) + " M";
+    }
+
+    return number.toLocaleString("id-ID");
+  }
+
+  // Format persentase
+  function formatPercentage(number) {
+    if (number == null) return "N/A";
+    return number.toFixed(2) + "%";
+  }
+
+  // Warna chart untuk aset dan ekuitas
+  const assetColor = "rgba(59, 130, 246, 0.7)"; // Biru untuk aset
+  const equityColor = "rgba(16, 185, 129, 0.7)"; // Hijau untuk ekuitas
+
+  // Variable untuk menyimpan instance chart
+  let compositionChart = null;
+
+  // Tahun terpilih
+  let selectedYear = 2021;
+
+  // Memuat dropdown tahun
+  async function loadYearOptions() {
+    try {
+      const response = await fetch("/api/available-years");
+      const years = await response.json();
+
+      const yearFilter = document.getElementById("yearFilter");
+      yearFilter.innerHTML = "";
+
+      years.forEach((year) => {
+        const option = document.createElement("option");
+        option.value = year;
+        option.textContent = year;
+        if (year == selectedYear) {
+          option.selected = true;
+        }
+        yearFilter.appendChild(option);
+      });
+    } catch (error) {
+      console.error("Error loading years:", error);
+    }
+  }
+
+  // Fungsi untuk memuat data dan memperbarui UI
+  async function loadData(year = 2021) {
+    try {
+      // Tampilkan loading spinner
+      document.getElementById("loading").classList.remove("hidden");
+      document.getElementById("chart-container").classList.add("hidden");
+      document.getElementById("table-container").classList.add("hidden");
+      document.getElementById("insight-container").classList.add("hidden");
+      document.getElementById("no-data").classList.add("hidden");
+
+      const response = await fetch(
+        `/api/asset-equity-composition?year=${year}`
+      );
+      const result = await response.json();
+      const data = result.data;
+
+      if (data && data.length > 0) {
+        updateChart(data, year);
+        updateTable(data);
+
+        document.getElementById("chart-container").classList.remove("hidden");
+        document.getElementById("table-container").classList.remove("hidden");
+        document.getElementById("insight-container").classList.remove("hidden");
+      } else {
+        document.getElementById("no-data").classList.remove("hidden");
+
+        if (compositionChart) {
+          compositionChart.destroy();
+          compositionChart = null;
+        }
+      }
+
+      // Sembunyikan loading spinner
+      document.getElementById("loading").classList.add("hidden");
+
+      // Perbarui dropdown tahun jika years tersedia
+      if (result.years) {
+        const yearFilter = document.getElementById("yearFilter");
+        yearFilter.innerHTML = "";
+
+        result.years.forEach((y) => {
+          const option = document.createElement("option");
+          option.value = y;
+          option.textContent = y;
+          if (y == year) {
+            option.selected = true;
+          }
+          yearFilter.appendChild(option);
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      document.getElementById("loading").classList.add("hidden");
+      document.getElementById("no-data").classList.remove("hidden");
+      document.getElementById("no-data").innerHTML =
+        '<p class="text-center text-red-500">Gagal memuat data</p>';
+    }
+  }
+
+  // Fungsi untuk memperbarui grafik
+  function updateChart(data, year) {
+    const ctx = document.getElementById("compositionChart").getContext("2d");
+
+    // Urutkan data berdasarkan total aset
+    data = data.sort((a, b) => b.total_assets - a.total_assets);
+
+    // Batasi data yang ditampilkan ke 10 sektor teratas
+    if (data.length > 10) {
+      data = data.slice(0, 10);
+    }
+
+    // Persiapkan data
+    const labels = data.map((item) => item.sector);
+    const assetValues = data.map((item) => item.total_assets / 1000000000000); // Konversi ke triliun
+    const equityValues = data.map((item) => item.total_equity / 1000000000000); // Konversi ke triliun
+
+    // Hapus chart lama jika sudah ada
+    if (compositionChart) {
+      compositionChart.destroy();
+    }
+
+    // Buat grafik baru
+    compositionChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: "Total Aset",
+            data: assetValues,
+            backgroundColor: assetColor,
+            borderColor: assetColor.replace("0.7", "1"),
+            borderWidth: 1,
+          },
+          {
+            label: "Total Ekuitas",
+            data: equityValues,
+            backgroundColor: equityColor,
+            borderColor: equityColor.replace("0.7", "1"),
+            borderWidth: 1,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          title: {
+            display: true,
+            text: `Komposisi Aset dan Ekuitas per Sektor - Tahun ${year}`,
+            font: {
+              size: 16,
+              weight: "bold",
+            },
+          },
+          tooltip: {
+            callbacks: {
+              label: function (context) {
+                let label = context.dataset.label || "";
+                if (label) {
+                  label += ": ";
+                }
+                if (context.parsed.y !== null) {
+                  label += parseFloat(context.parsed.y).toFixed(2) + " T";
+                }
+                return label;
+              },
+              afterBody: function (context) {
+                const sectorIndex = context[0].dataIndex;
+                const sectorData = data[sectorIndex];
+
+                const equityRatio = sectorData.equity_to_assets_ratio;
+                const debtRatio = sectorData.debt_to_assets_ratio;
+
+                return [
+                  `Equity to Assets: ${formatPercentage(equityRatio)}`,
+                  `Debt to Assets: ${formatPercentage(debtRatio)}`,
+                  `Jumlah Emiten: ${sectorData.count}`,
+                ];
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            ticks: {
+              maxRotation: 45,
+              minRotation: 45,
+            },
+          },
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: "Nilai dalam Triliun Rupiah",
+            },
+            ticks: {
+              callback: function (value) {
+                return value.toFixed(1) + " T";
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  // Fungsi untuk memperbarui tabel
+  function updateTable(data) {
+    const tableBody = document.getElementById("tableBody");
+    tableBody.innerHTML = "";
+
+    // Urutkan data berdasarkan total aset
+    data = data.sort((a, b) => b.total_assets - a.total_assets);
+
+    data.forEach((item, index) => {
+      const row = document.createElement("tr");
+      row.className = index % 2 === 0 ? "bg-white" : "bg-gray-50";
+
+      const equityRatioClass =
+        item.equity_to_assets_ratio >= 50 ? "text-green-600" : "text-blue-600";
+      const debtRatioClass =
+        item.debt_to_assets_ratio >= 50 ? "text-red-600" : "text-yellow-600";
+
+      row.innerHTML = `
+          <td class="py-3 px-4 border-b border-gray-200 font-medium">${
+            item.sector
+          }</td>
+          <td class="py-3 px-4 border-b border-gray-200 text-right">${formatCurrency(
+            item.total_assets
+          )}</td>
+          <td class="py-3 px-4 border-b border-gray-200 text-right">${formatCurrency(
+            item.total_equity
+          )}</td>
+          <td class="py-3 px-4 border-b border-gray-200 text-right font-medium ${equityRatioClass}">${formatPercentage(
+        item.equity_to_assets_ratio
+      )}</td>
+          <td class="py-3 px-4 border-b border-gray-200 text-right font-medium ${debtRatioClass}">${formatPercentage(
+        item.debt_to_assets_ratio
+      )}</td>
+          <td class="py-3 px-4 border-b border-gray-200 text-center">${
+            item.count
+          }</td>
+        `;
+      tableBody.appendChild(row);
+    });
+  }
+
+  // Event listener untuk tombol filter
+  document.getElementById("applyFilter").addEventListener("click", function () {
+    const year = parseInt(document.getElementById("yearFilter").value);
+    selectedYear = year;
+    loadData(year);
+  });
+
+  // Panggil fungsi saat halaman dimuat
+  window.onload = function () {
+    loadYearOptions();
+    loadData(selectedYear);
+  };
+</script>
+{% endblock %}

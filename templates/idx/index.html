@@ -1,0 +1,105 @@
+{% extends 'index.html' %}
+
+{% block content %}
+  <!-- Main Content -->
+  <main class="flex-1 p-8 overflow-auto">
+    <div class="">
+      <h2 class="text-2xl font-semibold text-gray-800 mb-4">Dashboard Saham IDX</h2>
+
+      <!-- Ticker Selection -->
+      <div class="mb-6">
+        <label for="emitenSelect" class="block text-gray-700 mb-2">Pilih Ticker:</label>
+        <select id="emitenSelect" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">-- Pilih Ticker --</option>
+        </select>
+      </div>
+
+      <!-- Chart -->
+      <div class="w-full h-[500px]">
+          <canvas id="emitenChart" width="400" height="200"></canvas>
+      </div>
+    </div>
+  </main>
+
+  <!-- <h1>📊 Dashboard Emiten</h1> -->
+
+  <!-- <label for="emitenSelect">Pilih Emiten:</label>
+  <select id="emitenSelect">
+    <option value="">-- Pilih --</option>
+  </select> -->
+
+  <!-- <canvas id="emitenChart" width="400" height="200"></canvas> -->
+
+  <script>
+    let chart;
+
+    async function fetchData() {
+      const res = await fetch('/api/emiten');
+      return await res.json();
+    }
+
+    function updateDropdown(data) {
+      const select = document.getElementById('emitenSelect');
+      data.forEach(d => {
+        const option = document.createElement('option');
+        option.value = d.emiten;
+        option.textContent = d.emiten;
+        select.appendChild(option);
+      });
+    }
+
+    function updateChart(emitenData) {
+      const labels = ['Debt to Equity', 'Return on Assets', 'Return on Equity', 'Cash to Assets'];
+      const values = [
+        emitenData.calculated_ratios?.debt_to_equity ?? 0,
+        emitenData.calculated_ratios?.return_on_assets ?? 0,
+        emitenData.calculated_ratios?.return_on_equity ?? 0,
+        emitenData.calculated_ratios?.cash_to_assets_ratio ?? 0
+      ];
+
+      const ctx = document.getElementById('emitenChart').getContext('2d');
+      if (chart) chart.destroy();
+
+      chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: emitenData.emiten,
+            data: values,
+            backgroundColor: [
+              'rgba(255, 99, 132, 0.7)',
+              'rgba(54, 162, 235, 0.7)',
+              'rgba(255, 206, 86, 0.7)',
+              'rgba(75, 192, 192, 0.7)'
+            ]
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: { enabled: true }
+          },
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    window.onload = async () => {
+      const data = await fetchData();
+      updateDropdown(data);
+
+      const select = document.getElementById('emitenSelect');
+      select.addEventListener('change', () => {
+        const selected = select.value;
+        const emitenData = data.find(d => d.emiten === selected);
+        if (emitenData) {
+          updateChart(emitenData);
+        }
+      });
+    };
+  </script>
+{% endblock %}
