@@ -2,7 +2,7 @@
 
 {% block content %}
 <main class="p-8">
-  <h2 class="text-2xl font-bold text-gray-800 mb-4">Grafik Saham IDX - 3 Tahun terakhir</h2>
+  <h2 class="text-2xl font-bold text-gray-800 mb-4">Grafik Saham IDX - Bulanan</h2>
 
   <!-- Dropdown Ticker -->
   <label for="ticker-select" class="block text-gray-700 mb-2">Pilih Ticker:</label>
@@ -27,8 +27,8 @@
   const tickerSelect = document.getElementById("ticker-select");
   let priceChart, volumeChart;
 
-  // Ambil semua ticker
-  fetch("/api/tickers/3tahun")
+  // Ambil daftar ticker dari API
+  fetch("/api/tickers/bulanan")
     .then(res => res.json())
     .then(tickers => {
       tickers.forEach(ticker => {
@@ -43,10 +43,10 @@
     const ticker = tickerSelect.value;
     if (!ticker) return;
 
-    fetch(`/api/stock/3tahun/${ticker}`)
+    fetch(`/api/stock/bulanan/${ticker}`)
       .then(res => res.json())
       .then(data => {
-        const labels = data.map(d => d.StartDate);
+        const labels = data.map(d => d.Bulan);
         const open = data.map(d => d.open);
         const close = data.map(d => d.close);
         const high = data.map(d => d.high);
@@ -54,7 +54,7 @@
         const avgVol = data.map(d => d.avgVolume);
         const maxVol = data.map(d => d.maxVolume);
 
-        // Harga Chart
+        // Chart Harga
         if (priceChart) priceChart.destroy();
         priceChart = new Chart(document.getElementById("priceChart"), {
           type: 'line',
@@ -69,15 +69,10 @@
           },
           options: {
             responsive: true,
-            plugins: {
-              title: { display: false }
-            },
             scales: {
               x: {
-                ticks: {
-                  maxTicksLimit: 10
-                },
-                title: { display: true, text: "Tanggal" }
+                ticks: { maxTicksLimit: 12 },
+                title: { display: true, text: "Bulan" }
               },
               y: {
                 title: { display: true, text: "Harga" }
@@ -86,7 +81,7 @@
           }
         });
 
-        // Volume Chart
+        // Chart Volume
         if (volumeChart) volumeChart.destroy();
         volumeChart = new Chart(document.getElementById("volumeChart"), {
           type: 'bar',
@@ -99,15 +94,10 @@
           },
           options: {
             responsive: true,
-            plugins: {
-              title: { display: false }
-            },
             scales: {
               x: {
-                ticks: {
-                  maxTicksLimit: 10
-                },
-                title: { display: true, text: "Tanggal" }
+                ticks: { maxTicksLimit: 12 },
+                title: { display: true, text: "Bulan" }
               },
               y: {
                 title: { display: true, text: "Volume" }
